@@ -234,6 +234,12 @@ class Mobile_Builder_Product {
 			$price = $response->data['price'];
 
 			if ( $type == 'grouped' || $type == 'variable' ) {
+				$price_min = $object->get_variation_price();
+				$price_max = $object->get_variation_price('max');
+
+				$response->data['price_min'] = $price_min;
+				$response->data['price_max'] = $price_max;
+
 				foreach ( $woocommerce_wpml->settings['currencies_order'] as $currency ) {
 
 					if ( $currency != get_option( 'woocommerce_currency' ) ) {
