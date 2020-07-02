@@ -271,7 +271,7 @@ class Mobile_Builder_Cart {
 			$cart_item_key = WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $cart_item_data );
 
 			if ( ! $cart_item_key ) {
-				return new WP_Error( 'add_to_cart', "Can't add product item to cart.", array(
+				return new WP_Error( 'add_to_cart', __("Can't add product item to cart.", "mobile-builder"), array(
 					'status' => 403,
 				) );
 			}
@@ -330,7 +330,7 @@ class Mobile_Builder_Cart {
 		wc_maybe_define_constant( 'WOOCOMMERCE_CHECKOUT', true );
 
 		if ( WC()->cart->is_empty() && ! is_customize_preview() && apply_filters( 'woocommerce_checkout_update_order_review_expired', true ) ) {
-			return new WP_Error( 404, 'Sorry, your session has expired.' );
+			return new WP_Error( 404, __('Sorry, your session has expired.', "mobile-builder") );
 		}
 
 //		do_action( 'woocommerce_checkout_update_order_review', $request->get_param( 'post_data') ) ? wp_unslash( $request->get_param( 'post_data') ) : '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -524,14 +524,14 @@ class Mobile_Builder_Cart {
 		if ( ! $cart_item_key ) {
 			return new WP_Error(
 				'set_quantity_error',
-				'Cart item key not exist.'
+				__('Cart item key not exist.', "mobile-builder")
 			);
 		}
 
 		if ( 0 === $quantity || $quantity < 0 ) {
 			return new WP_Error(
 				'set_quantity_error',
-				'The quantity not validate'
+				__('The quantity not validate', "mobile-builder")
 			);
 		}
 
@@ -563,7 +563,7 @@ class Mobile_Builder_Cart {
 		if ( ! $cart_item_key ) {
 			return new WP_Error(
 				'remove_cart_item',
-				'Cart item key not exist.'
+				__('Cart item key not exist.', "mobile-builder")
 			);
 		}
 
@@ -597,7 +597,7 @@ class Mobile_Builder_Cart {
 		if ( ! $coupon_code ) {
 			return new WP_Error(
 				'add_discount',
-				'Coupon not exist.'
+				__('Coupon not exist.', "mobile-builder")
 			);
 		}
 
@@ -630,7 +630,7 @@ class Mobile_Builder_Cart {
 		if ( ! $coupon_code ) {
 			return new WP_Error(
 				'remove_coupon',
-				'Coupon not exist.'
+				__('Coupon not exist.', "mobile-builder")
 			);
 		}
 
@@ -663,7 +663,7 @@ class Mobile_Builder_Cart {
 		$isLogin = is_user_logged_in();
 
 		if ( ! $isLogin ) {
-			return new WP_Error( 'mobile_builder_can_not_add_to_cart', __( 'Sorry, you need login to add to cart.', 'mobile_builder' ) );
+			return new WP_Error( 'mobile_builder_can_not_add_to_cart', __( 'Sorry, you need login to add to cart.', 'mobile-builder' ) );
 		}
 
 		return true;
