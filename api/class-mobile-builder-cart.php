@@ -130,11 +130,42 @@ class Mobile_Builder_Cart {
 			'permission_callback' => array( $this, 'user_permissions_check' ),
 		) );
 
+		register_rest_route( $this->namespace, 'analytic', array(
+			'methods'  => WP_REST_Server::CREATABLE,
+			'callback' => array( $this, 'analytic' ),
+		) );
+
+	}
+
+	public function analytic( $request ) {
+		$headers = mobile_builder_headers();
+
+		$data = array(
+			"authStatus"        => false,
+			"WooCommerce"       => false,
+			"wcfm"              => class_exists( 'WCFM' ),
+			"jwtAuthKey"        => defined( 'MOBILE_BUILDER_JWT_SECRET_KEY' ),
+			"googleMapApiKey"   => defined( 'MOBILE_BUILDER_GOOGLE_API_KEY' ),
+			"facebookAppId"     => defined( 'MOBILE_BUILDER_FB_APP_ID' ),
+			"facebookAppSecret" => defined( 'MOBILE_BUILDER_FB_APP_SECRET' ),
+			"oneSignalId"       => defined( 'MOBILE_BUILDER_ONESIGNAL_APP_ID' ),
+			"oneSignalApiKey"   => defined( 'MOBILE_BUILDER_ONESIGNAL_API_KEY' ),
+		);
+
+		if ( isset( $headers['Authorization'] ) && $headers['Authorization'] == "Bearer test" ) {
+			$data['authStatus'] = true;
+		}
+
+		if ( class_exists( 'WooCommerce' ) ) {
+			$data['WooCommerce'] = true;
+		}
+
+		return $data;
 	}
 
 	public function auto_login( $request ) {
 
-		$theme = $request->get_param( 'theme' );
+		$theme    = $request->get_param( 'theme' );
 		$currency = $request->get_param( 'currency' );
 
 		wp_redirect( wc_get_checkout_url() . "?mobile=1&theme=$theme&currency=$currency" );
@@ -262,21 +293,39 @@ class Mobile_Builder_Cart {
 	public function add_to_cart( $request ) {
 
 		try {
-			$product_id     = $request->get_param( 'product_id' );
-			$quantity       = $request->get_param( 'quantity' );
-			$variation_id   = $request->get_param( 'variation_id' );
-			$variation      = $request->get_param( 'variation' );
-			$cart_item_data = $request->get_param( 'cart_item_data' );
+			$product_id        = $request->get_param( 'product_id' );
+			$quantity          = $request->get_param( 'quantity' );
+			$variation_id      = $request->get_param( 'variation_id' );
+			$variation         = $request->get_param( 'variation' );
+			$cart_item_data    = $request->get_param( 'cart_item_data' );
 
-			$cart_item_key = WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $cart_item_data );
+			$product_addons = array(
+				'quantity' => $quantity,
+				'add-to-cart' => $product_id,
+			);
 
-			if ( ! $cart_item_key ) {
-				return new WP_Error( 'add_to_cart', __("Can't add product item to cart.", "mobile-builder"), array(
+			// Prepare data validate add-ons
+			foreach ($cart_item_data['addons'] as $addon ) {
+				$product_addons['addon-' . $addon['field_name']][] = $addon['value'];
+			}
+
+			$passed_validation = apply_filters( 'woocommerce_add_to_cart_validation', true, $product_id, $quantity, $product_addons );
+
+			if ( $passed_validation ) {
+
+				$cart_item_key = WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $cart_item_data );
+
+			}
+
+			if ( ! $passed_validation || ! $cart_item_key ) {
+				//if validation failed or add to cart failed, return response from woocommerce
+				return new WP_Error( 'add_to_cart', htmlspecialchars_decode( strip_tags( wc_print_notices( true ) ) ), array(
 					'status' => 403,
 				) );
 			}
 
 			return WC()->cart->get_cart_item( $cart_item_key );
+
 		} catch ( \Exception $e ) {
 			//do something when exception is thrown
 			return new WP_Error( 'add_to_cart', $e->getMessage(), array(
@@ -330,7 +379,7 @@ class Mobile_Builder_Cart {
 		wc_maybe_define_constant( 'WOOCOMMERCE_CHECKOUT', true );
 
 		if ( WC()->cart->is_empty() && ! is_customize_preview() && apply_filters( 'woocommerce_checkout_update_order_review_expired', true ) ) {
-			return new WP_Error( 404, __('Sorry, your session has expired.', "mobile-builder") );
+			return new WP_Error( 404, __( 'Sorry, your session has expired.', "mobile-builder" ) );
 		}
 
 //		do_action( 'woocommerce_checkout_update_order_review', $request->get_param( 'post_data') ) ? wp_unslash( $request->get_param( 'post_data') ) : '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -388,6 +437,20 @@ class Mobile_Builder_Cart {
 			WC()->customer->set_calculated_shipping( true );
 		} else {
 			WC()->customer->set_calculated_shipping( false );
+		}
+
+		if ( apply_filters( 'wcfmmp_is_allow_checkout_user_location', true ) ) {
+			if ( $request->get_param( 'wcfmmp_user_location' ) ) {
+				WC()->customer->set_props( array( 'wcfmmp_user_location' => sanitize_text_field( $request->get_param( 'wcfmmp_user_location' ) ) ) );
+				WC()->session->set( '_wcfmmp_user_location', sanitize_text_field( $request->get_param( 'wcfmmp_user_location' ) ) );
+			}
+			if ( $request->get_param( 'wcfmmp_user_location_lat' ) ) {
+				WC()->session->set( '_wcfmmp_user_location_lat', sanitize_text_field( $request->get_param( 'wcfmmp_user_location_lat' ) ) );
+			}
+
+			if ( $request->get_param( 'wcfmmp_user_location_lng' ) ) {
+				WC()->session->set( '_wcfmmp_user_location_lng', sanitize_text_field( $request->get_param( 'wcfmmp_user_location_lng' ) ) );
+			}
 		}
 
 		WC()->customer->save();
@@ -524,14 +587,14 @@ class Mobile_Builder_Cart {
 		if ( ! $cart_item_key ) {
 			return new WP_Error(
 				'set_quantity_error',
-				__('Cart item key not exist.', "mobile-builder")
+				__( 'Cart item key not exist.', "mobile-builder" )
 			);
 		}
 
 		if ( 0 === $quantity || $quantity < 0 ) {
 			return new WP_Error(
 				'set_quantity_error',
-				__('The quantity not validate', "mobile-builder")
+				__( 'The quantity not validate', "mobile-builder" )
 			);
 		}
 
@@ -563,7 +626,7 @@ class Mobile_Builder_Cart {
 		if ( ! $cart_item_key ) {
 			return new WP_Error(
 				'remove_cart_item',
-				__('Cart item key not exist.', "mobile-builder")
+				__( 'Cart item key not exist.', "mobile-builder" )
 			);
 		}
 
@@ -597,7 +660,7 @@ class Mobile_Builder_Cart {
 		if ( ! $coupon_code ) {
 			return new WP_Error(
 				'add_discount',
-				__('Coupon not exist.', "mobile-builder")
+				__( 'Coupon not exist.', "mobile-builder" )
 			);
 		}
 
@@ -630,7 +693,7 @@ class Mobile_Builder_Cart {
 		if ( ! $coupon_code ) {
 			return new WP_Error(
 				'remove_coupon',
-				__('Coupon not exist.', "mobile-builder")
+				__( 'Coupon not exist.', "mobile-builder" )
 			);
 		}
 
